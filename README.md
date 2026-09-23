@@ -10,6 +10,7 @@ Each patch is a single `.lua` file. You don't need to install a plugin or change
 |---|---|---|
 | [`2-simpleui-library-count.lua`](2-simpleui-library-count.lua) | Adds a minimalist home screen module showing how many books are in your library, with optional read / unread counts | [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin) |
 | [`2-sort-authors-by-lastname.lua`](2-sort-authors-by-lastname.lua) | Sorts authors by last name, even when the metadata is "FirstName LastName" | Nothing. Works with or without [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin) |
+| [`2-smart-collections.lua`](2-smart-collections.lua) | Adds smart collections that fill themselves with books matching rules you set, like *Tags contains "fantasy"* or *Status is not Finished* | Nothing |
 
 ---
 
@@ -72,6 +73,7 @@ Stacked                         Row
 **Requirements:** KOReader with the [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin) plugin, version 2.5 or newer.
 
 ---
+
 ## Sort Authors by Last Name
 
 `2-sort-authors-by-lastname.lua`
@@ -119,6 +121,62 @@ Open the file in a text editor and change these values at the top:
 - If your version of KOReader or SimpleUI doesn't have one of the lists above, the patch skips it. The rest still work.
 
 **Requirements:** KOReader. [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin) is optional. It was checked against SimpleUI 2.7.1.
+
+---
+
+## Smart Collections
+
+`2-smart-collections.lua`
+
+Collections that fill themselves. Instead of adding books by hand, you set a few rules and every book in your library that matches is added automatically.
+
+```
+Smart collection: Fantasy to read
+
+  Tags contains "fantasy"
+  Status is not Finished
+  + Add rule
+  Books must match: ALL rules
+```
+
+**Features**
+
+- When you create a new collection, you choose **Normal collection** or **Smart collection**.
+- Books come from your **home folder and all its subfolders**. You don't need to connect a folder.
+- Match **ALL** rules (every rule must fit) or **ANY** rule (one is enough).
+- Smart collections are marked with a small wand icon in the collections list.
+
+**Fields you can filter on**
+
+Tags, Author, Title, Series, Series number, Language, Description, Status, Rating, Progress (%), Pages, Has highlights, File name, File type, Folder
+
+**Conditions**
+
+- **Text:** contains, does not contain, equals, does not equal, starts with, is empty, is not empty
+- **Numbers:** =, ≠, >, ≥, <, ≤
+- **Status:** is, is not (New, Reading, On hold, Finished)
+- Capital letters don't matter. For books with several tags or authors, a rule matches if any one of them fits.
+
+**Setup**
+
+1. Install the patch (see above) and restart KOReader.
+2. Open **Collections**, tap the menu icon (top left), then **New collection**.
+3. Choose **Smart collection**, give it a name, and add your rules.
+4. Tap **Create**.
+
+**Editing**
+
+- **Long-press** a smart collection in the list to edit its rules, update it now, rename or remove it, set it as default, or turn it into a normal collection.
+- Inside a smart collection, the menu has **Edit smart rules** and **Update now**.
+
+**Good to know**
+
+- Smart collections update when you open them. The collections list also refreshes them, at most once every 5 minutes. Tap **Update now** if you want the latest right away.
+- All matching books are added, whatever their reading status. To leave out finished books, add a rule like *Status is not Finished*.
+- A smart collection always matches its rules exactly. Books that stop matching (for example, once you mark them Finished) drop out. Books added by hand drop out too, unless they match.
+- For books you've never opened, the tags and author are read from the file the first time. On a big library, that first update can take a moment. The results are saved in `koreader/settings/smart_collections_cache.lua`, so later updates are fast.
+
+**Requirements:** KOReader. It was written against KOReader v2026.07.
 
 ---
 
