@@ -11,6 +11,7 @@ Each patch is a single `.lua` file. You don't need to install a plugin or change
 | [`2-simpleui-library-count.lua`](2-simpleui-library-count.lua) | Adds a minimalist home screen module showing how many books are in your library, with optional read / unread counts | [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin) |
 | [`2-sort-authors-by-lastname.lua`](2-sort-authors-by-lastname.lua) | Sorts authors by last name, even when the metadata is "FirstName LastName" | Nothing. Works with or without [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin) |
 | [`2-smart-collections.lua`](2-smart-collections.lua) | Adds smart collections that fill themselves with books matching rules you set, like *Tags contains "fantasy"* or *Status is not Finished* | Nothing |
+| [`2-collections-mosaic.lua`](2-collections-mosaic.lua) | Shows your collections list as a mosaic. Each collection is drawn as one cover made from the covers of its first 4 books | The Cover browser plugin (built into KOReader) |
 
 ---
 
@@ -178,6 +179,63 @@ Tags, Author, Title, Series, Series number, Language, Description, Status, Ratin
 - For books you've never opened, the tags and author are read from the file the first time. On a big library, that first update can take a while and can't be cancelled, so let it finish. The results are saved in `koreader/settings/smart_collections_cache.lua`, so later updates are fast.
 
 **Requirements:** KOReader. It was written against KOReader v2026.07. Works with or without [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin), including opening collections from its navbar and home screen.
+
+---
+
+## Collections Mosaic
+
+`2-collections-mosaic.lua`
+
+KOReader always shows the list of collections as plain text, even when your library uses the mosaic view. This patch shows it as a mosaic too. Each collection gets a cover made from the covers of its first 4 books, and it's the same size as a normal book cover.
+
+```
+┌─────────┬─────────┐   ┌─────────┬─────────┐
+│ cover 1 │ cover 2 │   │ cover 1 │ cover 2 │
+├─────────┼─────────┤   ├─────────┼─────────┤
+│ cover 3 │ cover 4 │   │ cover 3 │░░░░░░░░░│
+│ ┌─────────────────┐   │ ┌─────────────────┐
+│ │     Fantasy     │   │ │    Favorites    │
+│ │       24        │   │ │        3        │
+└─┴─────────────────┘   └─┴─────────────────┘
+```
+
+**Features**
+
+- The 4 covers sit edge to edge, with no frame and no gaps. Each cover is cropped a little to fill its quarter.
+- A label at the bottom shows the collection's name and how many books it has, plus markers like ★ for the default collection.
+- The "first 4 books" follow each collection's own sort order (manual, title, author…).
+- **Fewer than 4 books:** the empty spots are light grey. A book without a cover shows its title instead.
+- Covers that haven't been loaded yet appear on their own after a moment, the same way they do in your library.
+- **Tap** a collection to open it. **Long-press** it for the usual options.
+
+**Setup**
+
+1. Install the patch (see above) and restart KOReader.
+2. That's it. If your library is in a mosaic view, your collections list is too.
+
+**It follows your library view**
+
+The patch uses the same view as your library (File browser → *Display mode*):
+
+- **Mosaic with cover images:** collections are shown as cover collages.
+- **Mosaic with text covers:** you get the same layout, but with book titles instead of covers.
+- **List or classic view:** the normal collections list is kept.
+
+It also uses the same grid size (columns × rows, portrait and landscape) as your library.
+
+**Settings**
+
+Open the file in a text editor and change this value at the top:
+
+- `FOLLOW = "filemanager"`: set to `"collections"` to follow Cover browser's *Collections display mode* instead of your library's view.
+
+**Good to know**
+
+- The screen for adding a book to collections (the one with checkmarks) keeps the normal list.
+- **Exiting KOReader:** the patch also fixes a freeze where KOReader wouldn't quit if a collection or the collections list was still open (this happens easily with SimpleUI). Exit and Restart buttons from quick settings or gestures now work from those screens too. Each window it had to close is noted in `crash.log`.
+- Works together with [Smart Collections](#smart-collections).
+
+**Requirements:** KOReader with the **Cover browser** plugin turned on (it's built in, and already on if your library shows covers). It was written against KOReader v2026.07. Works with or without [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin).
 
 ---
 
