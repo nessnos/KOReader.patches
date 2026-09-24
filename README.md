@@ -172,11 +172,12 @@ Tags, Author, Title, Series, Series number, Language, Description, Status, Ratin
 **Good to know**
 
 - Smart collections update when you open them. The collections list also refreshes them, at most once every 5 minutes. Tap **Update now** if you want the latest right away.
+- While a collection updates, you'll briefly see *Updating smart collection…*. The collection or list opens once the update is done.
 - All matching books are added, whatever their reading status. To leave out finished books, add a rule like *Status is not Finished*.
 - A smart collection always matches its rules exactly. Books that stop matching (for example, once you mark them Finished) drop out. Books added by hand drop out too, unless they match.
-- For books you've never opened, the tags and author are read from the file the first time. On a big library, that first update can take a moment. The results are saved in `koreader/settings/smart_collections_cache.lua`, so later updates are fast.
+- For books you've never opened, the tags and author are read from the file the first time. On a big library, that first update can take a while and can't be cancelled, so let it finish. The results are saved in `koreader/settings/smart_collections_cache.lua`, so later updates are fast.
 
-**Requirements:** KOReader. It was written against KOReader v2026.07.
+**Requirements:** KOReader. It was written against KOReader v2026.07. Works with or without [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin), including opening collections from its navbar and home screen.
 
 ---
 
