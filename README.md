@@ -232,7 +232,6 @@ Open the file in a text editor and change this value at the top:
 **Good to know**
 
 - The screen for adding a book to collections (the one with checkmarks) keeps the normal list.
-- **Exiting KOReader:** the patch also fixes a freeze where KOReader wouldn't quit if a collection or the collections list was still open (this happens easily with SimpleUI). Exit and Restart buttons from quick settings or gestures now work from those screens too. Each window it had to close is noted in `crash.log`.
 - Works together with [Smart Collections](#smart-collections).
 
 **Requirements:** KOReader with the **Cover browser** plugin turned on (it's built in, and already on if your library shows covers). It was written against KOReader v2026.07. Works with or without [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin).
