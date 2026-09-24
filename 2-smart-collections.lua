@@ -435,83 +435,82 @@ function FMC:refreshSmartCollections(names, done_callback)
         return finish()
     end
 
-    local Trapper = require("ui/trapper")
-    Trapper:wrap(function()
-        local cache = getCache()
-        local cache_files = cache.data.files
-        local bookinfo = self.ui.bookinfo
-        local info = InfoMessage:new{
-            text = count == 1 and _("Updating smart collection…") or _("Updating smart collections…"),
-        }
-        UIManager:show(info)
-        UIManager:forceRePaint()
-        local completed, result = Trapper:dismissableRunInSubprocess(function()
-            return scanLibrary(home, specs, bookinfo, cache_files)
-        end, info)
-        UIManager:close(info)
-        if not completed or type(result) ~= "table" or type(result.matches) ~= "table" then
-            logger.warn("SmartCollections: update cancelled or failed")
-            return finish()
-        end
+    -- The update runs synchronously (blocking), so that whoever opened the
+    -- collection or the list (KOReader's menu, SimpleUI's navbar or home
+    -- screen, a gesture...) gets the finished result right away, exactly as
+    -- if this patch wasn't there. An asynchronous update made the list open
+    -- full screen under SimpleUI and made smart collections jump to Home.
+    local cache = getCache()
+    local cache_files = cache.data.files
+    local info = InfoMessage:new{
+        text = count == 1 and _("Updating smart collection…") or _("Updating smart collections…"),
+    }
+    UIManager:show(info)
+    UIManager:forceRePaint()
+    local ok, result = pcall(scanLibrary, home, specs, self.ui.bookinfo, cache_files)
+    UIManager:close(info)
+    if not ok or type(result) ~= "table" or type(result.matches) ~= "table" then
+        logger.warn("SmartCollections: update failed", result)
+        return finish()
+    end
 
-        -- update cache
-        local cache_dirty = false
-        for file, entry in pairs(result.new_cache or {}) do
-            cache_files[file] = entry
-            cache_dirty = true
-        end
-        for _i, file in ipairs(result.stale or {}) do
-            cache_files[file] = nil
-            cache_dirty = true
-        end
-        if cache_dirty then cache:flush() end
+    -- update cache
+    local cache_dirty = false
+    for file, entry in pairs(result.new_cache or {}) do
+        cache_files[file] = entry
+        cache_dirty = true
+    end
+    for _i, file in ipairs(result.stale or {}) do
+        cache_files[file] = nil
+        cache_dirty = true
+    end
+    if cache_dirty then cache:flush() end
 
-        -- update collections
-        local now = os.time()
-        local to_write = {}
-        for name, files in pairs(result.matches) do
-            local coll = ReadCollection.coll[name]
-            if coll then
-                local want = {}
-                for _i, file in ipairs(files) do want[file] = true end
-                local changed = false
-                for file in pairs(coll) do
-                    if not want[file] then
-                        coll[file] = nil
-                        changed = true
-                    end
-                end
-                for _i, file in ipairs(files) do
-                    if not coll[file] and lfs.attributes(file, "mode") == "file" then
-                        ReadCollection:addItem(file, name)
-                        changed = true
-                    end
-                end
-                last_refresh[name] = now
-                if changed then
-                    to_write[name] = true
-                    self.files_updated = self.show_mark
+    -- update collections
+    local now = os.time()
+    local to_write = {}
+    for name, files in pairs(result.matches) do
+        local coll = ReadCollection.coll[name]
+        if coll then
+            local want = {}
+            for _i, file in ipairs(files) do want[file] = true end
+            local changed = false
+            for file in pairs(coll) do
+                if not want[file] then
+                    coll[file] = nil
+                    changed = true
                 end
             end
-        end
-        if next(to_write) then
-            ReadCollection:write(to_write)
-        end
-
-        -- refresh visible widgets
-        if self.coll_list and self.coll_list.item_table then
-            for _i, item in ipairs(self.coll_list.item_table) do
-                if item.name and result.matches[item.name] then
-                    item.mandatory = self.getCollListItemMandatory(item.name)
+            for _i, file in ipairs(files) do
+                if not coll[file] and lfs.attributes(file, "mode") == "file" then
+                    ReadCollection:addItem(file, name)
+                    changed = true
                 end
             end
-            self:updateCollListItemTable()
+            last_refresh[name] = now
+            if changed then
+                to_write[name] = true
+                self.files_updated = self.show_mark
+            end
         end
-        if self.booklist_menu and result.matches[self.booklist_menu.path] then
-            self:updateItemTable()
+    end
+    if next(to_write) then
+        ReadCollection:write(to_write)
+    end
+
+    -- refresh visible widgets
+    if self.coll_list and self.coll_list.item_table then
+        for _i, item in ipairs(self.coll_list.item_table) do
+            if item.name and result.matches[item.name] then
+                item.mandatory = self.getCollListItemMandatory(item.name)
+            end
         end
-        finish()
-    end)
+        self:updateCollListItemTable()
+    end
+    if self.booklist_menu and result.matches[self.booklist_menu.path] then
+        self:updateItemTable()
+    end
+    finish()
 end
 
 -- ---------------------------------------------------------------------------
@@ -522,10 +521,7 @@ local orig_onShowColl = FMC.onShowColl
 function FMC:onShowColl(collection_name)
     local name = collection_name or ReadCollection.default_collection_name
     if isSmart(name) and os.time() - (last_refresh[name] or 0) >= COLL_REFRESH_INTERVAL then
-        self:refreshSmartCollections({ name }, function()
-            orig_onShowColl(self, collection_name)
-        end)
-        return true
+        self:refreshSmartCollections({ name })
     end
     return orig_onShowColl(self, collection_name)
 end
@@ -543,10 +539,7 @@ function FMC:onShowCollList(file_or_selected_collections, caller_callback, no_di
         end
         last_list_refresh = os.time()
         if #names > 0 then
-            self:refreshSmartCollections(names, function()
-                orig_onShowCollList(self, file_or_selected_collections, caller_callback, no_dialog)
-            end)
-            return true
+            self:refreshSmartCollections(names)
         end
     end
     return orig_onShowCollList(self, file_or_selected_collections, caller_callback, no_dialog)
