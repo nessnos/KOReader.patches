@@ -12,6 +12,7 @@ Each patch is a single `.lua` file. You don't need to install a plugin or change
 | [`2-sort-authors-by-lastname.lua`](2-sort-authors-by-lastname.lua) | Sorts authors by last name, even when the metadata is "FirstName LastName" | Nothing. Works with or without [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin) |
 | [`2-smart-collections.lua`](2-smart-collections.lua) | Adds smart collections that fill themselves with books matching rules you set, like *Tags contains "fantasy"* or *Status is not Finished* | Nothing |
 | [`2-collections-mosaic.lua`](2-collections-mosaic.lua) | Shows your collections list as a mosaic. Each collection is drawn as one cover made from the covers of its first 4 books | The Cover browser plugin (built into KOReader) |
+| [`2-collection-shuffle.lua`](2-collection-shuffle.lua) | Adds a **Shuffle** sort method for collections. The order changes every time you open the collection or the SimpleUI home screen | Nothing. Made for [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin)'s Featured Collection module |
 
 ---
 
@@ -236,6 +237,54 @@ Open the file in a text editor and change this value at the top:
 
 **Requirements:** KOReader with the **Cover browser** plugin turned on (it's built in, and already on if your library shows covers). It was written against KOReader v2026.07. Works with or without [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin).
 
+---
+
+## Collection Shuffle
+ 
+`2-collection-shuffle.lua`
+ 
+Adds **Shuffle** to a collection's *Sort by* options. A shuffled collection gets a new random order every time you open it. This is most useful with SimpleUI: add the collection to your home screen as a **Featured Collection** module, and you'll see different covers every time you go Home. It's a nice way to rediscover books sitting in your to-be-read pile.
+ 
+```
+Sort by
+ 
+  authors          │  title
+  keywords         │  series
+  name (natural)   │  name
+  size             │  last read date
+  Reverse sorting
+  Shuffle  ✓               ← new
+  ─────────────────────────
+  Manual sorting
+```
+ 
+**Features**
+ 
+- A new **Shuffle** button in the *Sort by* dialog of every collection, including [smart collections](#smart-collections).
+- The books get a new random order:
+  - every time the **SimpleUI home screen** opens (custom screens too), so Featured Collection modules show different books;
+  - every time you **open the collection** in KOReader;
+  - when you **tap Shuffle again** in the *Sort by* dialog (reshuffles right away).
+- While you stay on the home screen, the order stays the same, so swiping to the next page of covers won't show repeats.
+- The order is also used by [Collections Mosaic](#collections-mosaic), so the 4 covers on the collection's mosaic change too.
+**Setup**
+ 
+1. Install the patch (see above) and restart KOReader.
+2. Open **Collections** and open the collection you want to shuffle.
+3. Tap the menu icon (top left), then **Sort by**.
+4. Tap **Shuffle**. A ✓ shows it's on.
+5. *(SimpleUI)* On the home screen, add a **Featured Collection** module and pick that collection.
+**Turning it off**
+ 
+Open *Sort by* again and pick any other sort method, or *Manual sorting*. Manual sorting keeps the last shuffled order as your starting point.
+ 
+**Good to know**
+ 
+- SimpleUI's Featured Collection list hides a collection named exactly **"To Be Read"**, because SimpleUI has its own *To Be Read* module for it. Shuffle works in that module too. For a Featured Collection, give your collection another name.
+- *Reverse sorting* is greyed out while Shuffle is on. Reversing a random order wouldn't change anything.
+- If you remove the patch, the collection keeps the last shuffled order as a normal manual order. Nothing breaks.
+**Requirements:** KOReader. It was written against KOReader v2026.07 and checked against [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin) 2.7.1. SimpleUI is optional: without it, collections still reshuffle each time you open them.
+ 
 ---
 
 ## Troubleshooting
