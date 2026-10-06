@@ -14,6 +14,8 @@
       No connected folder is needed.
     * The collection updates itself every time you open it
       (and when you open the collections list, at most every 5 minutes).
+    * When you change a book's status or rating, all smart collections are
+      updated for that book right away.
     * Long-press a smart collection in the list to edit rules, update now,
       rename, remove, or convert it to a normal collection.
 
@@ -244,14 +246,15 @@ local function numberMatch(value, op, target)
 end
 
 -- Builds a lazy "book" accessor for one file.
-local function makeBook(file, fname, rel_folder, bookinfo, cache_files, new_cache, attr)
+local function makeBook(file, fname, rel_folder, bookinfo, cache_files, new_cache, attr, info_key)
+    info_key = info_key or file
     local book = {}
     local props_loaded, props
     local info
 
     local function getInfo()
         if not info then
-            local ok, res = pcall(BookList.getBookInfo, file)
+            local ok, res = pcall(BookList.getBookInfo, info_key)
             info = ok and res or { been_opened = false }
         end
         return info
@@ -288,7 +291,7 @@ local function makeBook(file, fname, rel_folder, bookinfo, cache_files, new_cach
     function book.values(field_id)
         local field = FIELD_BY_ID[field_id]
         if field_id == "status" then
-            return BookList.getBookStatus(file)
+            return BookList.getBookStatus(info_key)
         elseif field_id == "rating" then
             local i = getInfo()
             return i.been_opened and (i.rating or 0) or 0
@@ -416,6 +419,22 @@ end
 -- Refresh
 -- ---------------------------------------------------------------------------
 
+-- Updates the collections list counts and the open collection, if shown.
+-- names: table with collection names as keys.
+function FMC:refreshSmartWidgets(names)
+    if self.coll_list and self.coll_list.item_table then
+        for _i, item in ipairs(self.coll_list.item_table) do
+            if item.name and names[item.name] then
+                item.mandatory = self.getCollListItemMandatory(item.name)
+            end
+        end
+        self:updateCollListItemTable()
+    end
+    if self.booklist_menu and names[self.booklist_menu.path] then
+        self:updateItemTable()
+    end
+end
+
 function FMC:refreshSmartCollections(names, done_callback)
     local specs, count = {}, 0
     for _i, name in ipairs(names) do
@@ -498,19 +517,125 @@ function FMC:refreshSmartCollections(names, done_callback)
         ReadCollection:write(to_write)
     end
 
-    -- refresh visible widgets
-    if self.coll_list and self.coll_list.item_table then
-        for _i, item in ipairs(self.coll_list.item_table) do
-            if item.name and result.matches[item.name] then
-                item.mandatory = self.getCollListItemMandatory(item.name)
+    self:refreshSmartWidgets(result.matches)
+    finish()
+end
+
+-- ---------------------------------------------------------------------------
+-- Live update when a book's status (or rating) changes
+-- ---------------------------------------------------------------------------
+-- Every status change in KOReader goes through
+-- BookList.setBookInfoCacheProperty(): the book menu in the file browser or
+-- SimpleUI, the "Book status" screen, "Mark as finished" in the reader, the
+-- end-of-book action, and resetting a book. Only the changed book is checked
+-- against the rules of every smart collection, so this is instant: no
+-- library scan and no "Updating…" message.
+
+local WATCHED_PROPS = { status = true, rating = true }
+
+-- Re-checks only the given files against all smart collections.
+-- files: table with paths as keys (as given to setBookInfoCacheProperty).
+function FMC:updateSmartForFiles(files)
+    local names = getSmartNames()
+    if #names == 0 then return end
+    local home = getHomeDir()
+    if not home then return end
+    local specs = {}
+    for _i, name in ipairs(names) do
+        specs[name] = ReadCollection.coll_settings[name].smart
+    end
+    local cache = getCache()
+    local cache_files = cache.data.files
+    local new_cache = {}
+    local changed = {}
+    for file in pairs(files) do
+        local real = ffiUtil.realpath(file) or file
+        local attr = lfs.attributes(real)
+        local book
+        if attr and attr.mode == "file" and real:sub(1, #home + 1) == home .. "/" then
+            local rel_path = real:sub(#home + 2)
+            local rel_folder = rel_path:match("^(.*)/[^/]*$") or ""
+            local fname = rel_path:match("[^/]+$")
+            local hidden = ("/" .. rel_path):find("/%.") or ("/" .. rel_folder .. "/"):find("%.sdr/")
+            if not hidden and DocumentRegistry:hasProvider(real) then
+                book = makeBook(real, fname, rel_folder, self.ui.bookinfo, cache_files, new_cache, attr, file)
             end
         end
-        self:updateCollListItemTable()
+        for name, spec in pairs(specs) do
+            local coll = ReadCollection.coll[name]
+            if coll then
+                local should = false
+                if book then
+                    local ok, res = pcall(specMatches, book, spec)
+                    should = ok and res or false
+                end
+                if should and not coll[real] then
+                    ReadCollection:addItem(real, name)
+                    changed[name] = true
+                elseif not should and coll[real] then
+                    coll[real] = nil
+                    changed[name] = true
+                end
+            end
+        end
     end
-    if self.booklist_menu and result.matches[self.booklist_menu.path] then
-        self:updateItemTable()
+    if next(new_cache) then
+        for f, entry in pairs(new_cache) do cache_files[f] = entry end
+        cache:flush()
     end
-    finish()
+    if next(changed) then
+        ReadCollection:write(changed)
+        self.files_updated = self.show_mark
+        self:refreshSmartWidgets(changed)
+    end
+end
+
+local function getLiveCollectionsModule()
+    local ReaderUI = package.loaded["apps/reader/readerui"]
+    local reader = ReaderUI and ReaderUI.instance
+    if reader and reader.collections and reader.bookinfo then
+        return reader.collections
+    end
+    local FileManager = package.loaded["apps/filemanager/filemanager"]
+    local fm = FileManager and FileManager.instance
+    if fm and fm.collections and fm.bookinfo then
+        return fm.collections
+    end
+end
+
+local pending_files = {}
+local pending_scheduled = false
+
+local function processPendingFiles()
+    pending_scheduled = false
+    local files = pending_files
+    pending_files = {}
+    if next(files) == nil then return end
+    local manager = getLiveCollectionsModule()
+    local ok, err = false, "no file manager or reader"
+    if manager then
+        ok, err = pcall(manager.updateSmartForFiles, manager, files)
+    end
+    if not ok then
+        -- Could not update now: make sure everything is rescanned next time.
+        logger.warn("SmartCollections: live update failed, full update on next open:", err)
+        for name in pairs(last_refresh) do last_refresh[name] = nil end
+        last_list_refresh = 0
+    end
+end
+
+local orig_setBookInfoCacheProperty = BookList.setBookInfoCacheProperty
+BookList.setBookInfoCacheProperty = function(file, prop_name, prop_value, ...)
+    local res = orig_setBookInfoCacheProperty(file, prop_name, prop_value, ...)
+    if file and (WATCHED_PROPS[prop_name] or (prop_name == "been_opened" and prop_value == false)) then
+        pending_files[file] = true
+        if not pending_scheduled then
+            pending_scheduled = true
+            -- wait until the caller is done (sidecar saved, dialog closed)
+            UIManager:nextTick(processPendingFiles)
+        end
+    end
+    return res
 end
 
 -- ---------------------------------------------------------------------------
