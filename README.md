@@ -13,6 +13,7 @@ Each patch is a single `.lua` file. You don't need to install a plugin or change
 | [`2-smart-collections.lua`](2-smart-collections.lua) | Adds smart collections that fill themselves with books matching rules you set, like *Tags contains "fantasy"* or *Status is not Finished* | Nothing |
 | [`2-collections-mosaic.lua`](2-collections-mosaic.lua) | Shows your collections list as a mosaic. Each collection is drawn as one cover made from the covers of its first 4 books | The Cover browser plugin (built into KOReader) |
 | [`2-collection-shuffle.lua`](2-collection-shuffle.lua) | Adds a **Shuffle** sort method for collections. The order changes every time you open the collection or the SimpleUI home screen | Nothing. Made for [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin)'s Featured Collection module |
+| [`2-sleepscreen-progress-bar.lua`](2-sleepscreen-progress-bar.lua) | Draws a plain reading progress bar on the sleep screen, on top of the cover or image. You choose its color, thickness, edge and margins | Nothing |
 
 ---
 
@@ -284,6 +285,46 @@ Open *Sort by* again and pick any other sort method, or *Manual sorting*. Manual
 - *Reverse sorting* is greyed out while Shuffle is on. Reversing a random order wouldn't change anything.
 - If you remove the patch, the collection keeps the last shuffled order as a normal manual order. Nothing breaks.
 **Requirements:** KOReader. It was written against KOReader v2026.07 and checked against [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin) 2.7.1. SimpleUI is optional: without it, collections still reshuffle each time you open them.
+
+---
+
+## Sleep Screen Progress Bar
+
+`2-sleepscreen-progress-bar.lua`
+
+Adds a plain progress bar to your sleep screen. No text, no numbers, just a bar along one edge that shows how far you are in your book. It's drawn on top of whatever your sleep screen shows: the book cover, a custom image, a random image or a message.
+
+**Features**
+
+- Put the bar on the **top**, **bottom**, **left** or **right** edge.
+- Set its **thickness** in pixels.
+- **Distance from edge:** 0 puts the bar right against the bezel. Raise it to leave a gap.
+- **Margin at both ends:** 0 makes the bar run the full width or height. Raise it to shorten the bar evenly on both sides.
+- **Read part color:** black, white or shades of gray. Color screens also get red, orange, yellow, green, blue and purple. You can also type any color as `#RRGGBB`.
+- **Unread part color:** none by default, so only the read part shows. Pick a color if you want the whole track visible.
+- **Reverse fill direction:** by default the bar fills left → right (top and bottom bars) and top → bottom (left and right bars).
+- Colors stay correct in night mode.
+
+**Setup**
+
+1. Install the patch (see above) and restart KOReader.
+2. Go to **Settings → Screen → Sleep screen → Progress bar**.
+3. Make sure **Show progress bar** is on, then pick a position, a thickness and colors.
+4. Put your device to sleep to see the result.
+
+**Where the progress comes from**
+
+- **A book is open:** the page you're on right now.
+- **In the file manager:** the saved progress of the last book you read.
+- **"Show custom image or cover"** wallpaper: the saved progress of the book you picked there.
+- If there's no book progress (you've never opened the book, for example), no bar is drawn.
+
+**Good to know**
+
+- With the wallpaper set to **Leave screen as-is** and no sleep screen message, KOReader doesn't draw a sleep screen at all, so the bar doesn't show either. Turn on a sleep screen message, or pick another wallpaper.
+- The bar works together with the sleep screen message. It's drawn on top, so if they overlap, move the message using its own position setting.
+
+**Requirements:** KOReader. It was written against KOReader master from October 2026.
  
 ---
 
