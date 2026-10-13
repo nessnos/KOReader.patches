@@ -16,12 +16,15 @@
       (and when you open the collections list, at most every 5 minutes).
     * When you change a book's status or rating, all smart collections are
       updated for that book right away.
+    * "Last opened" rule: e.g. "Last opened: not among the last 1 book opened"
+      leaves out the book you are reading now. It follows KOReader's history
+      and updates as soon as you open another book.
     * Long-press a smart collection in the list to edit rules, update now,
       rename, remove, or convert it to a normal collection.
 
     Available fields: Tags, Author, Title, Series, Series number, Language,
     Description, Status, Rating, Progress (%), Pages, Has highlights,
-    File name, File type, Folder (relative to Home).
+    Last opened, File name, File type, Folder (relative to Home).
 
     Metadata of books that were never opened (and not already known by the
     Cover browser) is read from the file once, then cached in
@@ -75,6 +78,7 @@ local FIELDS = {
     { id = "progress",     text = _("Progress (%)"),  kind = "number" },
     { id = "pages",        text = _("Pages"),         kind = "number", meta = true },
     { id = "highlights",   text = _("Has highlights"), kind = "bool" },
+    { id = "recent",       text = _("Last opened"),   kind = "recent" },
     { id = "filename",     text = _("File name"),     kind = "text" },
     { id = "filetype",     text = _("File type"),     kind = "text" },
     { id = "folder",       text = _("Folder"),        kind = "text" },
@@ -105,6 +109,10 @@ local OPS = {
         { "is_true",  _("yes") },
         { "is_false", _("no") },
     },
+    recent = {
+        { "not_in_last", _("not among the last") },
+        { "in_last",     _("among the last") },
+    },
 }
 local NO_VALUE_OPS = { is_empty = true, not_empty = true, is_true = true, is_false = true }
 local STATUSES = { "new", "reading", "abandoned", "complete" }
@@ -125,6 +133,11 @@ local function describeRule(rule)
     if not field then return "?" end
     if field.kind == "bool" then
         return field.text .. ": " .. opText("bool", rule.op)
+    end
+    if field.kind == "recent" then
+        local n = tonumber(rule.value) or 1
+        return T(n == 1 and _("%1: %2 %3 book opened") or _("%1: %2 %3 books opened"),
+            field.text, opText("recent", rule.op), n)
     end
     local s = field.text .. " " .. opText(field.kind, rule.op)
     if NO_VALUE_OPS[rule.op] then return s end
@@ -196,7 +209,47 @@ local function hasMetadata(props)
 end
 
 -- ---------------------------------------------------------------------------
--- Rule evaluation (runs in a subprocess)
+-- "Last opened" rule: position of each book in KOReader's history
+-- ---------------------------------------------------------------------------
+
+local ReadHistory = require("readhistory")
+local recent_ranks = {} -- realpath -> 1 for the last opened book, 2 for the one before...
+
+-- Highest N used by a "Last opened" rule in the given specs (0 if none).
+local function maxRecentN(specs)
+    local max_n = 0
+    for _name, spec in pairs(specs) do
+        for _i, rule in ipairs(spec.rules or {}) do
+            if rule.field == "recent" then
+                local n = math.floor(tonumber(rule.value) or 1)
+                if n > max_n then max_n = n end
+            end
+        end
+    end
+    return max_n
+end
+
+-- Ranks the last max_n existing books of the history. Books that were deleted
+-- are skipped, so "the last opened book" is always one you still have.
+local function computeRecentRanks(max_n)
+    local ranks = {}
+    if max_n <= 0 then return ranks end
+    local rank = 0
+    for _i, item in ipairs(ReadHistory.hist or {}) do
+        if item.file and not item.dim and lfs.attributes(item.file, "mode") == "file" then
+            local real = ffiUtil.realpath(item.file) or item.file
+            if not ranks[real] then
+                rank = rank + 1
+                ranks[real] = rank
+                if rank >= max_n then break end
+            end
+        end
+    end
+    return ranks
+end
+
+-- ---------------------------------------------------------------------------
+-- Rule evaluation
 -- ---------------------------------------------------------------------------
 
 local function splitList(str, pattern)
@@ -303,6 +356,8 @@ local function makeBook(file, fname, rel_folder, bookinfo, cache_files, new_cach
         elseif field_id == "highlights" then
             local i = getInfo()
             return i.been_opened and i.has_annotations and true or false
+        elseif field_id == "recent" then
+            return recent_ranks[file]
         elseif field_id == "pages" then
             local i = getInfo()
             local p = i.pages or getProps().pages
@@ -351,6 +406,11 @@ local function ruleMatches(book, rule)
     elseif field.kind == "bool" then
         if rule.op == "is_true" then return v == true end
         return v ~= true
+    elseif field.kind == "recent" then
+        local n = math.floor(tonumber(rule.value) or 1)
+        local in_last = v ~= nil and v <= n
+        if rule.op == "in_last" then return in_last end
+        return not in_last
     end
     return false
 end
@@ -372,6 +432,7 @@ end
 
 -- Scans the home folder (recursively), returns matches per collection.
 local function scanLibrary(home, specs, bookinfo, cache_files)
+    recent_ranks = computeRecentRanks(maxRecentN(specs))
     local matches, new_cache, seen = {}, {}, {}
     for name in pairs(specs) do matches[name] = {} end
     local home_len = #home
@@ -544,6 +605,7 @@ function FMC:updateSmartForFiles(files)
     for _i, name in ipairs(names) do
         specs[name] = ReadCollection.coll_settings[name].smart
     end
+    recent_ranks = computeRecentRanks(maxRecentN(specs))
     local cache = getCache()
     local cache_files = cache.data.files
     local new_cache = {}
@@ -624,19 +686,66 @@ local function processPendingFiles()
     end
 end
 
+local function queueFileUpdate(file)
+    pending_files[file] = true
+    if not pending_scheduled then
+        pending_scheduled = true
+        -- wait until the caller is done (sidecar saved, dialog closed)
+        UIManager:nextTick(processPendingFiles)
+    end
+end
+
 local orig_setBookInfoCacheProperty = BookList.setBookInfoCacheProperty
 BookList.setBookInfoCacheProperty = function(file, prop_name, prop_value, ...)
     local res = orig_setBookInfoCacheProperty(file, prop_name, prop_value, ...)
     if file and (WATCHED_PROPS[prop_name] or (prop_name == "been_opened" and prop_value == false)) then
-        pending_files[file] = true
-        if not pending_scheduled then
-            pending_scheduled = true
-            -- wait until the caller is done (sidecar saved, dialog closed)
-            UIManager:nextTick(processPendingFiles)
-        end
+        queueFileUpdate(file)
     end
     return res
 end
+
+-- When the history changes (a book is opened, or removed from history), the
+-- books whose "Last opened" position may have crossed a rule's limit are
+-- re-checked: the top N+1 of the history, plus any removed books.
+local function onHistoryChanged(extra_files)
+    local specs = {}
+    for _i, name in ipairs(getSmartNames()) do
+        specs[name] = ReadCollection.coll_settings[name].smart
+    end
+    local max_n = maxRecentN(specs)
+    if max_n == 0 then return end
+    local count = 0
+    for _i, item in ipairs(ReadHistory.hist or {}) do
+        if item.file and not item.dim then
+            queueFileUpdate(item.file)
+            count = count + 1
+            if count > max_n then break end
+        end
+    end
+    for file in pairs(extra_files or {}) do
+        queueFileUpdate(file)
+    end
+end
+
+local function hookHistory(method, get_extra)
+    local orig = ReadHistory[method]
+    if type(orig) ~= "function" then return end
+    ReadHistory[method] = function(hist_self, ...)
+        local extra = get_extra and get_extra(...)
+        local res = { orig(hist_self, ...) }
+        local ok, err = pcall(onHistoryChanged, extra)
+        if not ok then logger.warn("SmartCollections: history hook failed:", err) end
+        return unpack(res)
+    end
+end
+hookHistory("addItem")
+hookHistory("removeItem", function(item)
+    return type(item) == "table" and item.file and { [item.file] = true } or nil
+end)
+hookHistory("removeItems", function(files)
+    return type(files) == "table" and util.tableDeepCopy(files) or nil
+end)
+hookHistory("clearMissing")
 
 -- ---------------------------------------------------------------------------
 -- Hooks: showing collections / list
@@ -882,6 +991,7 @@ function FMC:pickSmartRule(old_rule, done)
         end
         local hint
         if field.id == "keywords" then hint = "fantasy"
+        elseif field.id == "recent" then hint = "1"
         elseif field.id == "rating" then hint = "0–5"
         elseif field.id == "progress" then hint = "0–100"
         elseif field.id == "filetype" then hint = "epub"
@@ -893,7 +1003,7 @@ function FMC:pickSmartRule(old_rule, done)
             title = field.text .. " " .. opText(field.kind, op) .. "…",
             input = old_value and tostring(old_value) or nil,
             input_hint = hint,
-            input_type = field.kind == "number" and "number" or nil,
+            input_type = (field.kind == "number" or field.kind == "recent") and "number" or nil,
             buttons = {{
                 {
                     text = _("Cancel"),
@@ -912,6 +1022,10 @@ function FMC:pickSmartRule(old_rule, done)
                         if field.kind == "number" then
                             value = tonumber((value:gsub(",", ".")))
                             if not value then return end
+                        elseif field.kind == "recent" then
+                            value = tonumber(value)
+                            if not value or value < 1 then return end
+                            value = math.floor(value)
                         end
                         UIManager:close(input_dialog)
                         done({ field = field.id, op = op, value = value })
