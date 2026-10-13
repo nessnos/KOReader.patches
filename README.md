@@ -14,6 +14,7 @@ Each patch is a single `.lua` file. You don't need to install a plugin or change
 | [`2-collections-mosaic.lua`](2-collections-mosaic.lua) | Shows your collections list as a mosaic. Each collection is drawn as one cover made from the covers of its first 4 books | The Cover browser plugin (built into KOReader) |
 | [`2-collection-shuffle.lua`](2-collection-shuffle.lua) | Adds a **Shuffle** sort method for collections. The order changes every time you open the collection or the SimpleUI home screen | Nothing. Made for [SimpleUI](https://github.com/doctorhetfield-cmd/simpleui.koplugin)'s Featured Collection module |
 | [`2-sleepscreen-progress-bar.lua`](2-sleepscreen-progress-bar.lua) | Draws a plain reading progress bar on the sleep screen, on top of the cover or image. You choose its color, thickness, edge and margins | Nothing |
+| [`2-highlight-menu-modifications.lua`](2-highlight-menu-modifications.lua) | Replaces the highlight pop-up with a two-row icon menu: colour dots on top, shortcuts (note, dictionary, translate, search, undo) below. Also opens when you tap an existing highlight | Nothing. Icons in [`icons/`](icons/) are optional |
 
 ---
 
@@ -325,6 +326,68 @@ Adds a plain progress bar to your sleep screen. No text, no numbers, just a bar 
 - The bar works together with the sleep screen message. It's drawn on top, so if they overlap, move the message using its own position setting.
 
 **Requirements:** KOReader. It was written against KOReader master from October 2026.
+
+---
+
+## Highlight Menu
+
+`2-highlight-menu-modifications.lua`
+
+Replaces KOReader's highlight pop-up (the grid of text buttons) with a compact two-row menu, a bit like on a Kobo. The top row has colour dots: tap one and the selection is highlighted in that colour. The bottom row has shortcuts.
+
+```
+┌──────┬──────┬──────┬──────┬──────┬──────┐
+│  ●   │  ●   │  ●   │  ●   │  ●   │  ●   │   pink · yellow · blue · orange · green · purple
+├──────┼──────┼──────┼──────┼──────┴──────┤
+│ note │ dict │ 文A  │  🔍  │    undo     │
+└──────┴──────┴──────┴──────┴─────────────┘
+```
+
+**Features**
+
+- **One tap to highlight** in pink, yellow, blue, orange, green or purple. The highlight is extended to the full sentence.
+- **Shortcuts:** add a note, dictionary, translate, search in book, undo.
+- **Tap an existing highlight** to get the same menu:
+  - a colour dot changes its colour (the current colour is circled)
+  - Note opens its note
+  - Undo deletes the highlight
+- **Pink** is added as a new highlight colour. It also shows up in KOReader's own colour picker.
+- Highlights are saved with the **full chapter path** (e.g. *Part 1 ▸ Chapter 3*) instead of just the chapter name.
+- Every button shows an **icon** if you've installed one, and a text label if not.
+
+**Setup**
+
+1. Install the patch (see above).
+2. *(Optional, for icons)* Download the [`icons`](icons/) folder and copy its `.svg` files into the `icons` folder next to `patches`:
+   - **Kobo:** `.adds/koreader/icons/`
+   - **Kindle:** `koreader/icons/`
+   - Create the `icons` folder if it doesn't exist.
+3. Restart KOReader and long-press a word.
+
+**Settings**
+
+Open the file in a text editor and change these values at the top:
+
+- `COLOR_BUTTONS`: which colours appear, and in what order. Any of red, orange, yellow, green, olive, cyan, blue, purple, gray or pink.
+- `PINK_HEX = "#FF66B2"`: the shade of pink.
+- `HIGHLIGHT_STYLE = "lighten"`: set to `"underscore"` to underline instead.
+- `ACTION_BUTTONS`: which shortcuts appear, and in what order. Also available: `wikipedia`, `copy`, `select` (extend the selection) and `edit` (KOReader's original highlight dialog with style, boundaries, etc.). Matching icons are included.
+- `SHOW_NOTE_FIRST = false`: set to `true` to show a highlight's note first when you tap it, like KOReader normally does.
+- `COLOR_ICON_SIZE` / `ACTION_ICON_SIZE`: icon size.
+
+**Using your own icons**
+
+Put any square `.svg` or `.png` in the `icons` folder with the same name as the one it replaces (e.g. `hl_pink.svg`, `hl_translate.svg`). Files named `…_on` (e.g. `hl_pink_on.svg`) mark the current colour of a tapped highlight.
+
+**Good to know**
+
+- **Undo** on a new selection just cancels it. Nothing is saved.
+- Buttons that other plugins add to the highlight menu (like *Vocabulary builder*) aren't shown in this layout.
+- On black-and-white screens, highlight colours show as shades of grey.
+
+**Requirements:** KOReader. It was written against KOReader from October 2026.
+
+**Credits:** based on [koReader-highlight-menu-patch](https://github.com/VeeBui/koReader-highlight-menu-patch) by VeeBui.
  
 ---
 
@@ -343,3 +406,4 @@ Found a bug or have an idea? Feel free to [open an issue](../../issues).
 [MIT](LICENSE). You're free to use, modify, and share these patches.
 
 These patches aren't affiliated with the KOReader or SimpleUI projects.
+The Highlight Menu patch is based on [VeeBui's highlight menu patch](https://github.com/VeeBui/koReader-highlight-menu-patch).
